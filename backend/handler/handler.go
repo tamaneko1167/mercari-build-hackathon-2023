@@ -12,9 +12,9 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
+	"github.com/pkg/errors"
 	"github.com/tamaneko1167/mecari-build-hackathon-2023/backend/db"
 	"github.com/tamaneko1167/mecari-build-hackathon-2023/backend/domain"
-	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -44,14 +44,14 @@ type registerResponse struct {
 type getUserItemsResponse struct {
 	ID           int32  `json:"id"`
 	Name         string `json:"name"`
-	Price        int64  `json:"price"`
+	Price        uint64 `json:"price"`
 	CategoryName string `json:"category_name"`
 }
 
 type getOnSaleItemsResponse struct {
 	ID           int32  `json:"id"`
 	Name         string `json:"name"`
-	Price        int64  `json:"price"`
+	Price        uint64 `json:"price"`
 	CategoryName string `json:"category_name"`
 }
 
@@ -61,7 +61,7 @@ type getItemResponse struct {
 	CategoryID   int64             `json:"category_id"`
 	CategoryName string            `json:"category_name"`
 	UserID       int64             `json:"user_id"`
-	Price        int64             `json:"price"`
+	Price        uint64            `json:"price"`
 	Description  string            `json:"description"`
 	Status       domain.ItemStatus `json:"status"`
 }
@@ -78,7 +78,7 @@ type sellRequest struct {
 type addItemRequest struct {
 	Name        string `form:"name"`
 	CategoryID  int64  `form:"category_id"`
-	Price       int64  `form:"price"`
+	Price       uint64 `form:"price"`
 	Description string `form:"description"`
 }
 
@@ -87,11 +87,11 @@ type addItemResponse struct {
 }
 
 type addBalanceRequest struct {
-	Balance int64 `json:"balance"`
+	Balance uint64 `json:"balance"`
 }
 
 type getBalanceResponse struct {
-	Balance int64 `json:"balance"`
+	Balance uint64 `json:"balance"`
 }
 
 type loginRequest struct {
@@ -452,9 +452,53 @@ func (h *Handler) GetBalance(c echo.Context) error {
 	return c.JSON(http.StatusOK, getBalanceResponse{Balance: user.Balance})
 }
 
-func (h *Handler) Purchase(c echo.Context) error {
+func (h *Handler) Cancel(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	userID, err := getUserID(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, err)
+	}
+
+	// TODO: overflow
+	itemID, err := strconv.Atoi(c.Param("itemID"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err)
+	}
+
+	// TODO: update only when item status is on sale
+	// http.StatusPreconditionFailed(412)
+
+	// オーバーフローしていると。ここのint32(itemID)がバグって正常に処理ができないはず
+	if err := h.ItemRepo.UpdateItemStatus(ctx, int32(itemID), domain.ItemStatusSoldOut); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err)
+	}
+
+	//Item情報
+	item, err := h.ItemRepo.GetItem(ctx, int32(itemID))
+	// TODO: not found handling
+	// http.StatusNotFound(404)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err)
+	}
+
+	sellerID := item.UserID
+
+	//UserIDがsellerIDと一致するときだけ消去できる
+	//Itemの出品をキャンセルする
+	//h.ItemRepo.CancelItem(ctx, item.ID)
+	if userID == sellerID {
+		if err := h.ItemRepo.CancelItem(ctx, item.ID); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, err)
+		}
+		return c.JSON(http.StatusOK, "successful")
+	}
+
+	return c.JSON(http.StatusOK, "not your item")
+}
+
+func (h *Handler) Purchase(c echo.Context) error {
+	ctx := c.Request().Context()
 	userID, err := getUserID(c)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, err)

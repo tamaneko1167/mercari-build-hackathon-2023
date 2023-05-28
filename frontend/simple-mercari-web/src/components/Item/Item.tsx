@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useCookies } from "react-cookie";
 import { useNavigate } from "react-router-dom";
-import { fetcherBlob } from "../../helper";
+import { fetcherBlob, fetcher } from "../../helper";
+import { toast } from "react-toastify";
 
 interface Item {
   id: number;
@@ -51,6 +52,28 @@ export const Item: React.FC<{ item: Item }> = ({ item }) => {
         <span>Price: {item.price}</span>
         <br />
       </p>
+      <button onClick={()=>deleteItem(item.id, cookies)} id="MerButton" >
+              Delete Item
+      </button>
     </div>
   );
 };
+
+const deleteItem = (id:number, cookies:any) => {
+  fetcher(`/cancel/${id}`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${cookies.token}`,
+    },
+    body: JSON.stringify({
+    }),
+  })
+  .then((_) => window.location.reload())
+    .catch((err) => {
+      console.log(`POST error:`, err);
+      toast.error(err.message);
+    });
+}
+

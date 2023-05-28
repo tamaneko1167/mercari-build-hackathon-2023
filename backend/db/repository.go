@@ -10,7 +10,7 @@ import (
 type UserRepository interface {
 	AddUser(ctx context.Context, user domain.User) (int64, error)
 	GetUser(ctx context.Context, id int64) (domain.User, error)
-	UpdateBalance(ctx context.Context, id int64, balance int64) error
+	UpdateBalance(ctx context.Context, id int64, balance uint64) error
 }
 
 type UserDBRepository struct {
@@ -40,7 +40,7 @@ func (r *UserDBRepository) GetUser(ctx context.Context, id int64) (domain.User, 
 	return user, row.Scan(&user.ID, &user.Name, &user.Password, &user.Balance)
 }
 
-func (r *UserDBRepository) UpdateBalance(ctx context.Context, id int64, balance int64) error {
+func (r *UserDBRepository) UpdateBalance(ctx context.Context, id int64, balance uint64) error {
 	if _, err := r.ExecContext(ctx, "UPDATE users SET balance = ? WHERE id = ?", balance, id); err != nil {
 		return err
 	}
@@ -50,6 +50,7 @@ func (r *UserDBRepository) UpdateBalance(ctx context.Context, id int64, balance 
 type ItemRepository interface {
 	AddItem(ctx context.Context, item domain.Item) (domain.Item, error)
 	GetItem(ctx context.Context, id int32) (domain.Item, error)
+	CancelItem(ctx context.Context, id int32) ( error)
 	GetItemImage(ctx context.Context, id int32) ([]byte, error)
 	GetOnSaleItems(ctx context.Context) ([]domain.Item, error)
 	GetItemsByUserID(ctx context.Context, userID int64) ([]domain.Item, error)
@@ -83,6 +84,11 @@ func (r *ItemDBRepository) GetItem(ctx context.Context, id int32) (domain.Item, 
 
 	var item domain.Item
 	return item, row.Scan(&item.ID, &item.Name, &item.Price, &item.Description, &item.CategoryID, &item.UserID, &item.Image, &item.Status, &item.CreatedAt, &item.UpdatedAt)
+}
+
+func (r *ItemDBRepository) CancelItem(ctx context.Context, id int32) (error) {
+	_, err := r.ExecContext(ctx, "DELETE FROM items WHERE id = ?", id)
+	return err
 }
 
 func (r *ItemDBRepository) GetItemImage(ctx context.Context, id int32) ([]byte, error) {

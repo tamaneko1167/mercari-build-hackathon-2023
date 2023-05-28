@@ -11,7 +11,7 @@ const (
 type Item struct {
 	ID          int32
 	Name        string
-	Price       int64
+	Price       uint64
 	Description string
 	CategoryID  int64
 	UserID      int64
